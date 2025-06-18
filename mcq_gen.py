@@ -1,129 +1,207 @@
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.llm import LLMChain
-from langchain.chains.sequential import SequentialChain
-from langchain_community.llms.llamacpp import LlamaCpp
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.prompts import PromptTemplate
-from langchain_community.llms import Ollama
-from langchain_ollama import OllamaLLM as Ollama
-from langchain_core.runnables import RunnableSequence, RunnablePassthrough
+import re
 import os
 import json
-from typing import Dict
-from langchain_core.runnables import RunnableLambda
+from semantic_cluster import retrieve_diverse_chunks
+from chunk_files import load_and_split_pdfs
+from embedder import store_embeddings
+from langchain_core.prompts import PromptTemplate
+from langchain.schema import StrOutputParser
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import OllamaLLM
+from keybert import KeyBERT
+from config import kw_model
+import time
+import tiktoken
 
-from langchain_ollama import ChatOllama
+ENCODING = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
-with open(r"C:\Users\georg_r1r2xai\OneDrive\Desktop\MCQ\quiz_template.json") as f: quiz_template = json.load(f)
+def count_tokens(text: str) -> int:
+    return len(ENCODING.encode(text))
 
-llm = Ollama(
-    model = "llama3",
-    temperature = 0.7
+total_tokens_used = 0
+
+os.environ["GOOGLE_API_KEY"] = "AIzaSyChXadHTAjLRk81ktugkgZ4qucD-_l6lhU"
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2)
+# llm = OllamaLLM(model="llama3", temperature=0.2)
+
+parser = StrOutputParser()
+
+self_refine_prompt = PromptTemplate(
+    input_variables=["context"],
+    template="""
+Given the following university course content, generate a high-quality multiple-choice question.
+
+Steps:
+1. Create a clear and pedagogically relevant MCQ stem (question).
+2. Provide the correct answer.
+3. Evaluate your own question (too easy? unclear?).
+4. Improve the question accordingly.
+
+Avoid rephrasing existing questions on the same topic. Focus on unique, non-redundant concepts drawn from the context.
+Try to cover under-assessed or deeper understanding concepts if possible.
+
+Respond using the following format:
+STEM: <initial question>
+ANSWER: <correct answer>
+CRITIQUE: <evaluation>
+IMPROVED: <better version>
+
+Context:
+{context}
+"""
 )
 
-initial_prompt = """
-You are a Multiple-Choice Question generator helping students learn their course material better. Your job is to test
- students' knowledge by creating multiple-choice questions (MCQs) based on the provided text {text}.
- Create {numbers} multiple-choice questions for students that are undergraduate-level.
- The questions must include topics and concepts from the provided document {text}, focusing on learning outcomes.
- The questions must have 4 alternatives: one correct answer and three incorrect answers.
- Follow these guidelines to write the stems of the questions: the stem addresses one single learning outcome, uses clear
- and concise wording, and avoids negative phrases and ambiguous vocabulary.
- Follow these guidelines to write the alternatives: all alternatives must be plausible answers, have a similar length, be parallel in
-grammatical form, and avoid repeating phrases or words from the stem. Also alternatives should not include obviously
-wrong answers, \"All of the above\" or \"None of the above\".
-The quiz must follow this template: {quiz_template}
+cot_prompt = PromptTemplate(
+    input_variables=["revised"],
+    template="""
+Given the revised MCQ below, generate 3 incorrect options (distractors) that are plausible but incorrect.
+
+Then return the final MCQ in this **required JSON format**:
+{{
+  "stem": "<revised STEM here>",
+  "key": "<correct answer>",
+  "distractors": ["...", "...", "..."]
+}}
+
+Do not add explanations or additional commentary.
+All fields must be present and filled.
+
+Revised MCQ:
+{revised}
 """
+)
 
-generate_stem_and_key = """
-Generate a stem and key for a for a Multiple-Choice Question (MCQ) based on the provided text {text}. Follow the format:
+self_refine_chain = self_refine_prompt | llm | parser
+cot_chain = cot_prompt | llm | parser
 
-Stem: [Insert Topic-Related-Question]
-Key: [Insert Correct Answer]
-"""
+def extract_last_improved_mcq(raw_output):
+    lines = raw_output.splitlines()
+    all_blocks = []
+    current_block = []
+    capture = False
 
-suggest_difficulty_enhancement = """
-Given the MCQ stem and key, provide one suggestion to increase the difficulty without altering the correct answer.
+    for line in lines:
+        if line.strip().startswith("IMPROVED:"):
+            if current_block:
+                all_blocks.append("\n".join(current_block).strip())
+                current_block = []
+            capture = True
+            continue
+        if capture:
+            if line.strip().startswith("CRITIQUE:") and current_block:
+                continue
+            current_block.append(line)
 
-Question: [Stem]
-Correct Answer: [Key]
-Suggestion: [Provide suggestion to increase difficulty]
-"""
+    if current_block:
+        all_blocks.append("\n".join(current_block).strip())
 
-apply_difficulty_enhancement = """
-Integrate the difficulty enhancement suggestion into the MCQ. Ensure the stem reflects the increased difficulty.
+    return all_blocks[-1] if all_blocks else None
 
-Original Question: [Stem]: [Key]
-Suggestion: [Suggestion]
-New Question: [Revised Stem]: [Key]
-"""
+def extract_json_block(text):
+    match = re.search(r"\{.*?\}", text, re.DOTALL)
+    if match:
+        try:
+            parsed = json.loads(match.group())
+            required_fields = ["stem", "key", "distractors"]
+            for field in required_fields:
+                if field not in parsed or not parsed[field]:
+                    print(f" Missing field: {field}")
+                    return None
+            return parsed
+        except json.JSONDecodeError as e:
+            print(" JSON found but not valid:", e)
+    return None
 
-def self_refine(text, iterations=2):
-    intial_output = text | llm
-    
+def extract_topic_label(text: str) -> str:
+    keywords = kw_model.extract_keywords(
+        text,
+        keyphrase_ngram_range=(1, 2),
+        stop_words="english",
+        top_n=1
+    )
+    return keywords[0][0] if keywords else "Unknown"
 
+def generate_mcq(context):
+    global total_tokens_used
 
-# system_prompt = """
-#     Create {numbers} MCQs from this exact document:
-# {text}
-# STRICT REQUIREMENTS:
-# 1. Use ONLY this JSON format (maintain all fields exactly):
-# {quiz_template}
-#
-# Guidelines:
-# - Format exactly like: {quiz_template}
-# - Only use concepts actually mentioned in the text
-# - For each question:
-# - 1 correct answer
-# - 3 plausible incorrect answers
-# - Brief feedback on each option
-# """
-#
-# quiz_generation_prompt = PromptTemplate(
-#     input_variables= ["text", "numbers", "tone" ,"quiz_template"],
-#     template = system_prompt
-# )
-#
-# quiz_chain = quiz_generation_prompt | llm
-#
-# review_template = """
-# Analyze ONLY these actual questions:
-# {quiz}
-#
-# Provide:
-# 1. Complexity rating (1-10) for each
-# 2. 2 specific strengths
-# 3. 2 specific weaknesses
-# 4. 1 concrete improvement suggestion
-#
-# Do NOT analyze hypothetical questions.
-# """
-#
-# quiz_evaluation_prompt = PromptTemplate(
-#     input_variables= ["quiz"],
-#     template = review_template
-# )
-#
-#
-# def generate_and_evaluate(inputs: Dict) -> Dict:
-#     # Generate quiz
-#     quiz = quiz_chain.invoke(inputs)
-#
-#     # Evaluate quiz
-#     review = review_chain.invoke({"quiz": quiz})
-#
-#     return {"quiz": quiz, "review": review}
-#
-#
-# review_chain = quiz_evaluation_prompt | llm
-#
-# generate_evaluate_chain = (
-#     RunnablePassthrough.assign(quiz=quiz_chain)
-#     | {
-#         "quiz": RunnablePassthrough(),  # Pass through the quiz
-#         "review": lambda x: review_chain.invoke({"quiz": x["quiz"]})
-#     }
-# )
-#
-#
+    prompt_tokens = count_tokens(context)
+    raw_output = self_refine_chain.invoke({"context": context})
+    response_tokens_1 = count_tokens(raw_output)
+    print("\n RAW OUTPUT FROM SELF-REFINE:\n", raw_output)
+    print(f" Tokens - Prompt: {prompt_tokens} | Response (Self-Refine): {response_tokens_1}")
+
+    improved = extract_last_improved_mcq(raw_output)
+    if not improved:
+        print(" Could not extract improved MCQ.")
+        return None
+
+    cot_input_tokens = count_tokens(improved)
+    final_mcq = cot_chain.invoke({"revised": improved})
+    response_tokens_2 = count_tokens(final_mcq)
+    print(f" Tokens - Prompt (CoT): {cot_input_tokens} | Response (Final MCQ): {response_tokens_2}")
+
+    total = prompt_tokens + response_tokens_1 + cot_input_tokens + response_tokens_2
+    total_tokens_used += total
+    print(f" Total tokens used for this MCQ: {total} | Cumulative: {total_tokens_used}")
+
+    parsed = extract_json_block(final_mcq)
+    return parsed
+
+def retrieve_mcqs_from_seed_queries(retriever, k=5):
+    seed_queries = [
+        "Give a testable concept from this course.",
+        "Extract a core principle of this subject.",
+        "Describe a function from a key component.",
+        "Summarize an important memory concept.",
+        "What is a common architecture topic?",
+    ]
+    contexts = []
+    for query in seed_queries[:k]:
+        docs = retriever.invoke(query)
+        context = "\n\n".join([doc.page_content for doc in docs])
+        contexts.append(context)
+    return contexts
+
+if __name__ == "__main__":
+    pdfs = [
+        #"example_data/SI_Curs1.pdf",
+        #"example_data/SI_Curs2.pdf"
+        #"example_data/RC_Curs11.pdf",
+        #"example_data/Crypto.pdf",
+        #"example_data/SoftwareSecurity1.pdf",
+        "example_data/Csharp.pdf",
+    ]
+
+    print(" Loading and splitting PDFs...")
+    chunks = load_and_split_pdfs(pdfs)
+    clustered_contexts = retrieve_diverse_chunks(chunks, k=8)
+
+    vectorstore = store_embeddings(chunks)
+    retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 10})
+
+    all_mcqs = []
+    for i, context in enumerate(clustered_contexts):
+        topic = extract_topic_label(context)
+        print(f" Cluster {i + 1} Topic: {topic}")
+        mcq = generate_mcq(context)
+        time.sleep(3 + i * 0.5)
+        if mcq:
+            mcq["source"] = "cluster"
+            all_mcqs.append(mcq)
+
+    # Fallback using seed queries if needed
+    if len(all_mcqs) < 5:
+        print(f" Only {len(all_mcqs)} MCQs from clustering — using seed query fallback...")
+        fallback_contexts = retrieve_mcqs_from_seed_queries(retriever, k=5 - len(all_mcqs))
+        for ctx in fallback_contexts:
+            mcq = generate_mcq(ctx)
+            if mcq:
+                mcq["source"] = "retriever"
+                all_mcqs.append(mcq)
+
+    if all_mcqs:
+        with open("generated_mcqs.json", "w", encoding="utf-8") as f:
+            json.dump(all_mcqs, f, indent=4, ensure_ascii=False)
+        print(f" {len(all_mcqs)} MCQs saved to generated_mcqs.json")
+    else:
+        print("No MCQs were generated.")

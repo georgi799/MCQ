@@ -1,15 +1,13 @@
-from langchain.chains.llm import LLMChain
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableMap
-from langchain_ollama import ChatOllama
 from langchain.schema import StrOutputParser
-from langchain_chroma import Chroma
-from langchain_community.embeddings import LlamaCppEmbeddings
 from langchain.chains import RetrievalQA
-from langchain_community.llms import LlamaCpp
 from langchain_ollama import OllamaLLM
+from langchain_google_genai import ChatGoogleGenerativeAI
+import os
 
+
+#os.environ["GOOGLE_API_KEY"] = "AIzaSyChXadHTAjLRk81ktugkgZ4qucD-_l6lhU"
 
 prompt_rewrite = PromptTemplate(
         input_variables=["query"],
@@ -36,10 +34,12 @@ Use only the information in the context to answer. Be accurate, concise, and fie
 
 Guidelines:
 - Never fabricate instruction syntax, register behavior, protocol rules, or hardware features.
-- If the context does not explicitly define a concept, say:
-  "The document does not explicitly define '{query}', but related terms include..."
-- Avoid confident answers unless grounded in the context.
-- Always answer in educational English.
+- Only describe performance advantages if they are explicitly stated in the document, or can be cautiously inferred from examples within the context (e.g., divide-and-conquer patterns).
+- If the document does not provide a direct answer, but related examples or descriptions exist, use them cautiously to illustrate the concept.
+- Only answer confidently if supported by terms or examples found in the document.
+- Always answer in educational English using examples or terminology found in the source.
+- Do not introduce advanced data structures (e.g., trees, graphs, suffix arrays) unless they are present in the source context.
+- You may cautiously compare data structures if they are both defined in the context, even if tradeoffs are not explicitly stated.
 
 Context:
 {context}
@@ -53,8 +53,18 @@ Answer:
 
 
 def setup_rag(vectorstore):
-    llm = OllamaLLM(model="llama3", temperature=0.2)
-    retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 5})
+    llm = OllamaLLM(
+        model="llama3",
+        temperature=0.2
+    )
+
+   # llm = ChatGoogleGenerativeAI(
+   #     model="gemini-2.0-flash",
+    #    temperature=0.2,
+    #    max_output_tokens=1024
+    #)
+    retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 10, "fetch_k": 20})
+
 
     rewrite_chain = prompt_rewrite | llm | StrOutputParser()
     answer_chain = react_prompt | llm | StrOutputParser()
@@ -62,10 +72,13 @@ def setup_rag(vectorstore):
     full_chain = (
     {"query": RunnablePassthrough()}
     | RunnableMap({"query": rewrite_chain})
-    | (lambda rewritten: {
+    | (lambda rewritten: (
+        print(f"Rewritten Query: \n {repr(rewritten['query'])}\n"),
+        {
         "query": rewritten["query"],
         "context": "\n\n".join([doc.page_content for doc in retriever.invoke(rewritten["query"])])
-    })
+        }
+    )[1])
     | answer_chain
 )
 
