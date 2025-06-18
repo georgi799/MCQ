@@ -1,36 +1,49 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langdetect import detect, LangDetectException
-
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_experimental.text_splitter import SemanticChunker
 
 def load_and_split_pdfs(file_paths, chunk_size=1000, chunk_overlap=200):
     all_chunks= []
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", ".", " ", ""]
+    embedding_model = HuggingFaceEmbeddings(
+        model_name="intfloat/multilingual-e5-large",
+        encode_kwargs = {"normalize_embeddings": True}
+    )
+
+    chunker = SemanticChunker(
+        embeddings=embedding_model,
+        breakpoint_threshold_type="percentile",
+        breakpoint_threshold_amount=95,
     )
 
     for file_path in file_paths:
      try:
+        print(f" Attempting to load: {file_path}")
         loader = PyPDFLoader(file_path)
         documents = loader.load()
-        chunks = text_splitter.split_documents(documents)
+        print(f" Loaded {len(documents)} pages from: {file_path}")
+
+        print(" Chunking...")
+        chunks = chunker.split_documents(documents)
+        print(f" Chunked into {len(chunks)} parts")
 
         for chunk in chunks:
-            if len(chunk.page_content.strip()) > 20:
+            text = chunk.page_content.strip()
+            if len(text) > 20:
                 try:
-                    chunk.metadata["language"] = detect(chunk.page_content)
+                    chunk.metadata["language"] = detect(text)
                 except LangDetectException:
                     chunk.metadata["language"] = "unknown"
             else:
                 chunk.metadata["language"] = "unknown"
             chunk.metadata["source_file"] = file_path
+
         all_chunks.extend(chunks)
 
      except Exception as e:
-        print(f"Error loading {file_paths}: {e}")
+        print(f"Error loading {file_path}: {e}")
         continue
 
     return all_chunks

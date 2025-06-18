@@ -1,0 +1,52 @@
+[
+    {
+        "stem": "Consider a scenario where you need to execute a block of code at least once, regardless of the initial state of a boolean condition. Which control flow statement in C# is most suitable for this purpose, and why?",
+        "key": "A `do-while` loop, because it guarantees at least one execution of the code block before checking the condition.",
+        "distractors": [
+            "A `while` loop, because it is the most common looping construct.",
+            "An `if-else` statement, because it can handle both true and false conditions.",
+            "A `switch` statement, because it allows for multiple execution paths based on a variable's value."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Consider a scenario where you need to access the `BasicPay` property of a `Staff` object from a class outside of the `Staff` class. Which of the following access modifier combinations for the `BasicPay` property would allow you to read the value but prevent you from directly modifying it from the external class?",
+        "key": "`public get; private set;`",
+        "distractors": [
+            "`public get; public set;`",
+            "`private get; public set;`",
+            "`private get; private set;`"
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Considering the book's stated objectives, which approach to learning C# is most emphasized?",
+        "key": "A rapid, hands-on approach culminating in the development of a practical application.",
+        "distractors": [
+            "A comprehensive exploration of the .NET framework and its integration with C#.",
+            "A theoretical understanding of C# syntax and semantics, independent of practical application.",
+            "A comparative analysis of C# with other object-oriented programming languages, focusing on performance benchmarks."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Consider the following code:\n\n```csharp\nstring greeting = \"Welcome\";\nstring punctuation = \"!!!\";\nint combinedLength = greeting.Length + punctuation.Length;\nConsole.WriteLine(\"Combined length: \" + combinedLength);\n```\n\nWhat will be the output of this code?",
+        "key": "Combined length: 10",
+        "distractors": [
+            "Combined length: 3",
+            "Combined length: Welcome!!!",
+            "10"
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Consider a scenario where a `Staff` class has a `public` method called `CalculateSalary()`. Which of the following best describes a potential consequence of declaring `CalculateSalary()` as `public` instead of `private` or `protected`?",
+        "key": "Code outside the `Staff` class, including unrelated classes or methods, can directly call and modify the behavior of `CalculateSalary()`, potentially leading to unintended side effects or security vulnerabilities.",
+        "distractors": [
+            "The `Staff` class will be unable to access its own data members, leading to incorrect salary calculations.",
+            "The compiler will generate an error because public methods are not allowed to perform calculations.",
+            "The `CalculateSalary()` method will automatically be overridden in any derived classes, regardless of intent."
+        ],
+        "source": "cluster"
+    }
+]
