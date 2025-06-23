@@ -1,5 +1,5 @@
 from chunk_files import load_and_split_pdfs
-from embedder import store_embeddings
+from mcq_genration.embedder import store_embeddings
 import sys
 
 def run_pipeline(pdf_paths, user_query):
@@ -7,7 +7,7 @@ def run_pipeline(pdf_paths, user_query):
     chunks = load_and_split_pdfs(pdf_paths)
 
     if not chunks:
-        print("⚠️ No chunks found in the document.")
+        print(" No chunks found in the document.")
         return
 
     print(f" Chunks ready for embedding: {len(chunks)}")
@@ -16,7 +16,7 @@ def run_pipeline(pdf_paths, user_query):
 
     print(" Setting up RAG chain components...")
 
-    from rag import prompt_rewrite, react_prompt, ChatGoogleGenerativeAI, StrOutputParser, OllamaLLM
+    from rag import prompt_rewrite, react_prompt, StrOutputParser, OllamaLLM
     #llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2)
     llm = OllamaLLM(model = "llama3", temperature=0.2)
     rewrite_chain = prompt_rewrite | llm | StrOutputParser()

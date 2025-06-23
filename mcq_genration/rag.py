@@ -83,3 +83,9 @@ def setup_rag(vectorstore):
 )
 
     return full_chain
+
+def retrieve_relevant_chunks(query, vectorstore, top_k=3):
+
+    retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": top_k, "fetch_k": 2*top_k})
+    docs = retriever.invoke(query)
+    return [doc.page_content for doc in docs]

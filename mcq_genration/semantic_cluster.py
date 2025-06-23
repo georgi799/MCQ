@@ -3,8 +3,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import torch
-import random
-from config import model, tokenizer
+from mcq_genration.config import model, tokenizer
 
 
 def embed_manual(texts):

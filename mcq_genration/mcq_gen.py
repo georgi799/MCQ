@@ -1,17 +1,19 @@
 import re
 import os
 import json
-from semantic_cluster import retrieve_diverse_chunks
-from chunk_files import load_and_split_pdfs
-from embedder import store_embeddings
+from mcq_genration.semantic_cluster import retrieve_diverse_chunks
+from mcq_genration.chunk_files import load_and_split_pdfs
+from mcq_genration.embedder import store_embeddings
 from langchain_core.prompts import PromptTemplate
 from langchain.schema import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import OllamaLLM
 from keybert import KeyBERT
-from config import kw_model
+from mcq_genration.config import kw_model
 import time
 import tiktoken
+from mcq_genration.rag import retrieve_relevant_chunks
+import random
 
 ENCODING = tiktoken.encoding_for_model("gpt-3.5-turbo")
 
@@ -119,7 +121,10 @@ def extract_topic_label(text: str) -> str:
         stop_words="english",
         top_n=1
     )
-    return keywords[0][0] if keywords else "Unknown"
+    # keywords is a list of (keyword, score) tuples
+    if keywords and isinstance(keywords[0], (tuple, list)):
+        return str(keywords[0][0])
+    return "Unknown"
 
 def generate_mcq(context):
     global total_tokens_used
@@ -162,42 +167,72 @@ def retrieve_mcqs_from_seed_queries(retriever, k=5):
         contexts.append(context)
     return contexts
 
+scenario_prompt_template = """
+Consider a scenario where {context}
+Based on this, what would be the correct answer to the following question (in English)?
+"""
+
+direct_prompt_template = """
+According to the following technical content, answer the question below (in English):
+{context}
+"""
+
 if __name__ == "__main__":
     pdfs = [
-        #"example_data/SI_Curs1.pdf",
+        "example_data/SI_Curs1.pdf",
         #"example_data/SI_Curs2.pdf"
         #"example_data/RC_Curs11.pdf",
         #"example_data/Crypto.pdf",
         #"example_data/SoftwareSecurity1.pdf",
-        "example_data/Csharp.pdf",
+        #"example_data/Csharp.pdf",
     ]
 
     print(" Loading and splitting PDFs...")
     chunks = load_and_split_pdfs(pdfs)
-    clustered_contexts = retrieve_diverse_chunks(chunks, k=8)
+    clustered_contexts = retrieve_diverse_chunks(chunks, k=10)  # Try for 10 clusters
 
     vectorstore = store_embeddings(chunks)
     retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 10})
 
+    desired_mcq_count = 10
     all_mcqs = []
+
+    # 1. Try to generate from clusters first
     for i, context in enumerate(clustered_contexts):
         topic = extract_topic_label(context)
         print(f" Cluster {i + 1} Topic: {topic}")
-        mcq = generate_mcq(context)
+
+        # Use RAG to get the most relevant context for this topic
+        relevant_chunks = retrieve_relevant_chunks(topic, vectorstore, top_k=3)
+        if not relevant_chunks:
+            continue
+
+        # Weighted random: 70% scenario, 30% direct
+        if random.random() < 0.7:
+            prompt_context = scenario_prompt_template.format(context="\n".join(relevant_chunks))
+        else:
+            prompt_context = direct_prompt_template.format(context="\n".join(relevant_chunks))
+
+        mcq = generate_mcq(prompt_context)
         time.sleep(3 + i * 0.5)
         if mcq:
             mcq["source"] = "cluster"
             all_mcqs.append(mcq)
+        if len(all_mcqs) >= desired_mcq_count:
+            break
 
-    # Fallback using seed queries if needed
-    if len(all_mcqs) < 5:
-        print(f" Only {len(all_mcqs)} MCQs from clustering — using seed query fallback...")
-        fallback_contexts = retrieve_mcqs_from_seed_queries(retriever, k=5 - len(all_mcqs))
+    # 2. Fallback: Use retriever if not enough MCQs
+    if len(all_mcqs) < desired_mcq_count:
+        needed = desired_mcq_count - len(all_mcqs)
+        print(f" Only {len(all_mcqs)} MCQs from clusters — using retriever fallback for {needed} more...")
+        fallback_contexts = retrieve_mcqs_from_seed_queries(retriever, k=needed)
         for ctx in fallback_contexts:
             mcq = generate_mcq(ctx)
             if mcq:
                 mcq["source"] = "retriever"
                 all_mcqs.append(mcq)
+            if len(all_mcqs) >= desired_mcq_count:
+                break
 
     if all_mcqs:
         with open("generated_mcqs.json", "w", encoding="utf-8") as f:
