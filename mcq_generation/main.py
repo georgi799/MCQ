@@ -11,7 +11,7 @@ def run_pipeline(pdf_paths, user_query):
         return
 
     print(f" Chunks ready for embedding: {len(chunks)}")
-    print("🔗 Generating embeddings and storing in vector DB...")
+    print(" Generating embeddings and storing in vector DB...")
     vectorstore = store_embeddings(chunks)
 
     print(" Setting up RAG chain components...")
