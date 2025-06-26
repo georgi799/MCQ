@@ -1,0 +1,102 @@
+[
+    {
+        "stem": "An embedded system is MORE likely than a general-purpose computer to prioritize which of the following characteristics?",
+        "key": "Minimizing power consumption and maximizing real-time responsiveness.",
+        "distractors": [
+            "Maximizing computational throughput for complex algorithms.",
+            "Providing a versatile platform for diverse software installations.",
+            "Supporting a wide range of user interface peripherals like high-resolution displays and advanced input devices."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Considering the context of embedded systems, which characteristic *most* distinguishes Internet of Things (IoT) devices like smart watches and fitness trackers from traditional embedded systems?",
+        "key": "They are interconnected and communicate with other devices and networks.",
+        "distractors": [
+            "They are primarily used for data collection and analysis.",
+            "They are typically powered by batteries.",
+            "They are designed for specific, single-purpose applications."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Which of the following best describes a common application of edge computing?",
+        "key": "Interfacing with sensors and actuators to control physical processes.",
+        "distractors": [
+            "Processing large datasets for complex calculations.",
+            "Utilizing standard operating systems for task management.",
+            "Communicating with other systems via high-bandwidth network connections."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Consider a smart irrigation system that uses soil moisture sensors and weather forecasts to optimize water usage. Which component of the IoT system is *primarily* responsible for physically controlling the water valves to release water into the soil?",
+        "key": "Actuators",
+        "distractors": [
+            "Sensors",
+            "Microcontroller",
+            "Communication Module"
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "While MOOCs share several common characteristics, which of the following aspects exhibits the GREATEST variability across different MOOC platforms?",
+        "key": "The requirement for formal enrollment and registration.",
+        "distractors": [
+            "The presence of pre-recorded video lectures.",
+            "The opportunity for participants to engage in online discussions.",
+            "The provision of course materials accessible at a time and place convenient for the learner."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Consider a complex industrial control system managing a chemical plant. While it incorporates elements of general-purpose computing, what is the *most significant* factor that allows it to be classified as an embedded system, rather than simply a network of general-purpose computers?",
+        "key": "Its primary function being the automated control and monitoring of specific chemical processes.",
+        "distractors": [
+            "Its reliance on real-time operating systems (RTOS) for deterministic behavior.",
+            "Its physical integration within the plant's machinery and sensors.",
+            "Its use of specialized communication protocols for sensor data acquisition."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "While MOOCs offer diverse learning experiences, which of the following aspects is MOST variable across different MOOC platforms and course designs?",
+        "key": "The requirement for learners to actively engage with other participants.",
+        "distractors": [
+            "The use of pre-recorded video lectures as a primary content delivery method.",
+            "The provision of learning materials accessible at the learner's convenience.",
+            "The availability of courses covering a wide range of academic and professional topics."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "An IoT device interacts with its environment through a closed-loop system. Which of the following BEST describes the sequence of operations within this loop?",
+        "key": "Sensing -> Data Processing -> Actuation",
+        "distractors": [
+            "Data transmission -> Data storage -> Data visualization",
+            "Actuation -> Data Collection -> Data Analysis",
+            "Sensing -> Actuation -> Data Processing"
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Considering the interdisciplinary nature of Embedded Systems, which of the following aspects presents the GREATEST challenge in designing and implementing a real-time embedded system for a smart home application, such as controlling Philips Hue lights?",
+        "key": "Ensuring seamless integration and communication between hardware components, software modules, and network protocols (e.g., Zigbee, Wi-Fi).",
+        "distractors": [
+            "Selecting an appropriate microcontroller with sufficient processing power.",
+            "Choosing a suitable programming language for efficient code execution.",
+            "Optimizing database query performance for storing historical sensor data."
+        ],
+        "source": "cluster"
+    },
+    {
+        "stem": "Which of the following characteristics most strongly differentiates an embedded system from a general-purpose computing system?",
+        "key": "Embedded systems are primarily designed and optimized for a specific set of tasks, whereas general-purpose systems are designed for a broader and more adaptable range of applications.",
+        "distractors": [
+            "Embedded systems prioritize energy efficiency and resource constraints to a greater extent than general-purpose systems.",
+            "Embedded systems typically lack the ability to connect to external peripherals, unlike general-purpose systems.",
+            "Embedded systems are more likely to utilize specialized hardware and real-time operating systems compared to general-purpose systems."
+        ],
+        "source": "cluster"
+    }
+]
