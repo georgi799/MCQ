@@ -1,5 +1,10 @@
-".venv/" 
-"__pycache__/" 
-"*.pyc" 
-".DS_Store" 
-".idea/" 
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+desktop.ini
+node_modules/
+build/
+dist/
+.env
