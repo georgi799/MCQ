@@ -3,18 +3,14 @@ from mcq_generation.embedder import store_embeddings
 import sys
 
 def run_pipeline(pdf_paths, user_query):
-    print(f"\n Loading documents: {pdf_paths}")
+    
     chunks = load_and_split_pdfs(pdf_paths)
 
     if not chunks:
         print(" No chunks found in the document.")
         return
-
-    print(f" Chunks ready for embedding: {len(chunks)}")
-    print(" Generating embeddings and storing in vector DB...")
+        
     vectorstore = store_embeddings(chunks)
-
-    print(" Setting up RAG chain components...")
 
     from rag import prompt_rewrite, react_prompt, StrOutputParser, OllamaLLM
     #llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2)
@@ -31,10 +27,7 @@ def run_pipeline(pdf_paths, user_query):
 
 
     retrieved_docs = retriever.invoke(rewritten_query)
-    print("\n Retrieved Context (First 1000 chars):\n")
-    print("\n".join([doc.page_content for doc in retrieved_docs])[:1000])
-
-    print("\n Retrieved Chunk Metadata:")
+   
     for i, doc in enumerate(retrieved_docs[:5]):
         meta = doc.metadata
         print(f"  {i+1}. Source: {meta.get('source_file', 'N/A')} | Language: {meta.get('language', 'N/A')}")
